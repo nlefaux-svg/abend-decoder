@@ -1,0 +1,869 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0a0f1e" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="AbendDecoder" />
+  <title>Abend Decoder z/OS</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
+
+    :root {
+      --bg:        #0a0f1e;
+      --surface:   #111827;
+      --border:    #1e2d45;
+      --accent:    #00d4ff;
+      --accent2:   #0077aa;
+      --text:      #e2e8f0;
+      --muted:     #64748b;
+      --green:     #22c55e;
+      --yellow:    #f59e0b;
+      --red:       #ef4444;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'IBM Plex Sans', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      padding: 20px 20px 12px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--accent);
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      line-height: 1.3;
+    }
+
+    .logo span {
+      display: block;
+      color: var(--muted);
+      font-size: 9px;
+      letter-spacing: 0.2em;
+    }
+
+    .pulse {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 6px var(--green);
+      animation: pulse 2s ease-in-out infinite;
+      flex-shrink: 0;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    main {
+      flex: 1;
+      padding: 24px 20px;
+      max-width: 600px;
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    .search-section {
+      margin-bottom: 28px;
+    }
+
+    label {
+      display: block;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+
+    .input-row {
+      display: flex;
+      gap: 10px;
+    }
+
+    input[type="text"] {
+      flex: 1;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px 16px;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--accent);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    input[type="text"]::placeholder {
+      color: var(--muted);
+      font-weight: 400;
+      font-size: 14px;
+    }
+
+    input[type="text"]:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(0,212,255,0.1);
+    }
+
+    button.decode-btn {
+      background: var(--accent);
+      color: var(--bg);
+      border: none;
+      border-radius: 6px;
+      padding: 12px 20px;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      cursor: pointer;
+      transition: background 0.2s;
+      white-space: nowrap;
+    }
+
+    button.decode-btn:hover { background: #33ddff; }
+
+    /* Quick access chips */
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .chip {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 11px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .chip:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    /* Result card */
+    .result-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      display: none;
+    }
+
+    .result-card.visible { display: block; }
+
+    .result-header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 18px 20px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .abend-code {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 26px;
+      font-weight: 600;
+      color: var(--accent);
+      letter-spacing: 0.05em;
+    }
+
+    .severity-badge {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      padding: 3px 9px;
+      border-radius: 20px;
+    }
+
+    .sev-high   { background: rgba(239,68,68,0.15);  color: var(--red);    border: 1px solid rgba(239,68,68,0.3);  }
+    .sev-medium { background: rgba(245,158,11,0.15); color: var(--yellow); border: 1px solid rgba(245,158,11,0.3); }
+    .sev-low    { background: rgba(34,197,94,0.15);  color: var(--green);  border: 1px solid rgba(34,197,94,0.3);  }
+
+    .result-body { padding: 20px; }
+
+    .result-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+
+    .result-type {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 0.08em;
+      margin-bottom: 18px;
+    }
+
+    .section-label {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 10px;
+      color: var(--accent2);
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+      margin-top: 18px;
+    }
+
+    .section-label:first-of-type { margin-top: 0; }
+
+    ul.causes, ul.solutions {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    ul.causes li, ul.solutions li {
+      font-size: 14px;
+      line-height: 1.5;
+      color: #cbd5e1;
+      padding-left: 16px;
+      position: relative;
+    }
+
+    ul.causes li::before {
+      content: '▸';
+      position: absolute;
+      left: 0;
+      color: var(--yellow);
+      font-size: 10px;
+      top: 3px;
+    }
+
+    ul.solutions li::before {
+      content: '✓';
+      position: absolute;
+      left: 0;
+      color: var(--green);
+      font-size: 11px;
+      top: 2px;
+    }
+
+    .not-found {
+      text-align: center;
+      padding: 32px 20px;
+      display: none;
+    }
+
+    .not-found.visible { display: block; }
+
+    .not-found .code-display {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 32px;
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+
+    .not-found p {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    footer {
+      padding: 16px 20px;
+      text-align: center;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 10px;
+      color: var(--muted);
+      letter-spacing: 0.08em;
+      border-top: 1px solid var(--border);
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="pulse"></div>
+  <div class="logo">
+    ABEND DECODER
+    <span>z/OS · SYSTEM ABEND REFERENCE</span>
+  </div>
+</header>
+
+<main>
+  <div class="search-section">
+    <label>Code abend</label>
+    <div class="input-row">
+      <input type="text" id="abendInput" placeholder="ex: S0C7, S322, U4038…" maxlength="8" />
+      <button class="decode-btn" onclick="decode()">Décoder</button>
+    </div>
+    <div class="chips" id="chips"></div>
+  </div>
+
+  <div class="result-card" id="resultCard">
+    <div class="result-header">
+      <div class="abend-code" id="resCode"></div>
+      <div class="severity-badge" id="resSev"></div>
+    </div>
+    <div class="result-body">
+      <div class="result-title" id="resTitle"></div>
+      <div class="result-type" id="resType"></div>
+      <div class="section-label">Causes fréquentes</div>
+      <ul class="causes" id="resCauses"></ul>
+      <div class="section-label">Pistes de résolution</div>
+      <ul class="solutions" id="resSolutions"></ul>
+    </div>
+  </div>
+
+  <div class="not-found" id="notFound">
+    <div class="code-display" id="nfCode"></div>
+    <p>Code non trouvé dans la base.<br/>Vérifiez l'orthographe (ex: S0C7, U1234).</p>
+  </div>
+</main>
+
+<footer>v1.0 · BASE LOCALE · 30 CODES</footer>
+
+<script>
+const ABENDS = {
+  "S0C1": {
+    title: "Operation Exception",
+    type: "SYSTEM ABEND · Protection",
+    severity: "high",
+    causes: [
+      "Branchement vers une zone de données plutôt que vers du code exécutable",
+      "Registre de base incorrect ou non initialisé",
+      "Instruction invalide ou zone écrasée par un précédent bug",
+      "ENTRY/CSECT mal défini dans le programme"
+    ],
+    solutions: [
+      "Vérifier les USING et les registres de base dans le Linkage",
+      "Analyser le dump SYSUDUMP pour localiser l'adresse en erreur",
+      "Contrôler l'ordre des CSECT et les sauts de branchement",
+      "Recompiler après correction et relancer"
+    ]
+  },
+  "S0C4": {
+    title: "Protection Exception (ABEND classique)",
+    type: "SYSTEM ABEND · Mémoire",
+    severity: "high",
+    causes: [
+      "Accès à une zone mémoire non autorisée ou non allouée",
+      "Pointeur ou adresse nul (0) utilisé pour accéder à des données",
+      "Buffer overflow : dépassement de la longueur d'une zone",
+      "Mauvaise initialisation d'un BLL Cell ou d'un pointeur LINKAGE"
+    ],
+    solutions: [
+      "Contrôler tous les pointeurs avant utilisation (SET ADDRESS OF)",
+      "Vérifier les longueurs dans les MOVE et les STRING",
+      "Analyser le dump pour identifier l'adresse fautive",
+      "Utiliser CEECHECK ou DEBUG TOOL pour tracer l'exécution"
+    ]
+  },
+  "S0C7": {
+    title: "Data Exception – Données non numériques",
+    type: "SYSTEM ABEND · Données",
+    severity: "high",
+    causes: [
+      "Zone numérique PIC 9 contenant des espaces ou des caractères non numériques",
+      "Champ non initialisé utilisé dans un calcul arithmétique",
+      "Données EBCDIC incorrectes lues depuis un fichier",
+      "Troncature de données lors d'un MOVE vers une zone trop courte"
+    ],
+    solutions: [
+      "Initialiser toutes les zones numériques à ZERO en début de programme",
+      "Ajouter un contrôle NUMERIC avant tout calcul (IF WS-ZONE IS NUMERIC)",
+      "Vérifier le format des données en entrée (RECFM, longueur d'enregistrement)",
+      "Analyser le dump pour identifier le champ fautif et son offset"
+    ]
+  },
+  "S0CB": {
+    title: "Division par zéro",
+    type: "SYSTEM ABEND · Arithmétique",
+    severity: "medium",
+    causes: [
+      "Instruction DIVIDE avec un diviseur égal à zéro",
+      "Zone diviseur non initialisée (valeur binaire zéro)",
+      "Calcul intermédiaire produisant un résultat nul utilisé ensuite comme diviseur"
+    ],
+    solutions: [
+      "Tester le diviseur avant l'opération : IF WS-DIV = 0 NEXT SENTENCE",
+      "Initialiser toutes les zones numériques à ZERO",
+      "Utiliser ON SIZE ERROR pour intercepter les erreurs arithmétiques"
+    ]
+  },
+  "S222": {
+    title: "Job annulé par l'opérateur",
+    type: "SYSTEM ABEND · Opérateur",
+    severity: "medium",
+    causes: [
+      "Commande CANCEL émise depuis la console opérateur",
+      "Job en attente trop longtemps (WTOR sans réponse)",
+      "Procédure automatique de nettoyage des jobs bloqués"
+    ],
+    solutions: [
+      "Vérifier le log opérateur (SYSLOG) pour la raison de l'annulation",
+      "Identifier si le job était en attente d'une réponse WTOR",
+      "Relancer le job si l'annulation était involontaire"
+    ]
+  },
+  "S322": {
+    title: "CPU Time Limit Exceeded",
+    type: "SYSTEM ABEND · Performance",
+    severity: "medium",
+    causes: [
+      "Boucle infinie dans le programme (loop sans condition de sortie)",
+      "TIME= trop faible dans la carte JOB ou EXEC",
+      "Traitement de volume de données bien supérieur aux prévisions",
+      "Algorithme inefficace sur un fichier de grande taille"
+    ],
+    solutions: [
+      "Augmenter le paramètre TIME= dans la JOB card (ex: TIME=1440 pour illimité)",
+      "Analyser le code pour détecter les boucles infinies",
+      "Ajouter des compteurs et des DISPLAY pour tracer la progression",
+      "Optimiser les accès fichiers (SORT préalable, index VSAM…)"
+    ]
+  },
+  "S806": {
+    title: "Module non trouvé (Load Module Not Found)",
+    type: "SYSTEM ABEND · Chargement",
+    severity: "high",
+    causes: [
+      "Le programme appelé via CALL ou EXEC PGM= est absent des bibliothèques",
+      "STEPLIB ou JOBLIB ne référence pas la bonne bibliothèque",
+      "Erreur de nom de programme (casse, espace, caractère incorrect)",
+      "Le programme n'a pas été compilé ou le lien-edit a échoué"
+    ],
+    solutions: [
+      "Vérifier le nom exact du module (PGM=MONPROG sans espace)",
+      "Contrôler les DD STEPLIB/JOBLIB et leur contenu via LISTDS",
+      "Relancer la compilation et le LKED si le source a changé",
+      "Vérifier les droits d'accès à la bibliothèque de chargement"
+    ]
+  },
+  "S813": {
+    title: "Module en conflit de version ou protégé",
+    type: "SYSTEM ABEND · Chargement",
+    severity: "medium",
+    causes: [
+      "Tentative de chargement d'un module dans une bibliothèque protégée",
+      "Conflit entre deux versions du même module dans différentes bibliothèques",
+      "Module marqué NOT EXECUTABLE après un LKED partiel"
+    ],
+    solutions: [
+      "Vérifier l'ordre des bibliothèques dans STEPLIB/JOBLIB",
+      "Utiliser AMBLIST pour lister les attributs du module",
+      "Relancer le LKED complet et vérifier le RC"
+    ]
+  },
+  "S878": {
+    title: "Manque de mémoire (GETMAIN Failed)",
+    type: "SYSTEM ABEND · Mémoire",
+    severity: "high",
+    causes: [
+      "La région mémoire allouée (REGION=) est insuffisante",
+      "Fuite mémoire : allocations répétées sans libération (FREEMAIN)",
+      "Tables internes ou working storage de taille excessive"
+    ],
+    solutions: [
+      "Augmenter REGION= dans la carte EXEC (ex: REGION=512M)",
+      "Vérifier les allocations dynamiques et les libérer après usage",
+      "Réduire la taille du WORKING-STORAGE si possible"
+    ]
+  },
+  "S913": {
+    title: "Accès refusé à une ressource protégée (RACF)",
+    type: "SYSTEM ABEND · Sécurité",
+    severity: "medium",
+    causes: [
+      "L'utilisateur ou le job n'a pas les droits RACF sur le dataset",
+      "Profil RACF manquant pour la ressource demandée",
+      "Accès en écriture tenté sur un dataset en lecture seule"
+    ],
+    solutions: [
+      "Contacter l'administrateur RACF pour les habilitations nécessaires",
+      "Vérifier les droits avec LISTDSD DATA('NOM.DATASET') AUTH",
+      "Contrôler le JOBCARD USER= si le job tourne sous un autre profil"
+    ]
+  },
+  "S001": {
+    title: "Erreur d'entrée/sortie sur fichier séquentiel",
+    type: "SYSTEM ABEND · I/O",
+    severity: "high",
+    causes: [
+      "Dataset manquant ou mal référencé dans le JCL",
+      "Format d'enregistrement incompatible (RECFM, LRECL, BLKSIZE)",
+      "Fichier endommagé ou tronqué",
+      "DD statement absent pour le fichier SELECT"
+    ],
+    solutions: [
+      "Vérifier que le DD correspond bien au SELECT FD du programme",
+      "Contrôler RECFM, LRECL et BLKSIZE entre le JCL et le programme",
+      "Vérifier l'existence du dataset avec LISTDS",
+      "Gérer FILE STATUS dans le programme pour capturer les erreurs I/O"
+    ]
+  },
+  "S002": {
+    title: "Erreur d'entrée/sortie – Longueur incorrecte",
+    type: "SYSTEM ABEND · I/O",
+    severity: "medium",
+    causes: [
+      "Longueur d'enregistrement ne correspond pas au LRECL déclaré",
+      "Écriture d'un enregistrement de longueur variable sans RDW correct",
+      "RECFM=V avec longueur fixe déclarée"
+    ],
+    solutions: [
+      "Harmoniser LRECL entre le DD JCL et le FD du programme",
+      "Pour RECFM=VB, inclure les 4 octets du RDW dans le calcul",
+      "Vérifier le BLOCK CONTAINS dans le FD"
+    ]
+  },
+  "S013": {
+    title: "Paramètre DCB incompatible",
+    type: "SYSTEM ABEND · I/O",
+    severity: "medium",
+    causes: [
+      "LRECL ou BLKSIZE incompatible entre le JCL et le dataset existant",
+      "RECFM déclaré ne correspond pas au format réel du fichier",
+      "Conflit entre les attributs DCB du programme et ceux du catalogue"
+    ],
+    solutions: [
+      "Omettre le DCB dans le JCL pour laisser le système lire les attributs catalogués",
+      "Vérifier les attributs réels avec LISTDS 'NOM.DS' LABEL",
+      "Corriger le FD du programme pour correspondre aux attributs réels"
+    ]
+  },
+  "S047": {
+    title: "Erreur de fermeture de fichier",
+    type: "SYSTEM ABEND · I/O",
+    severity: "low",
+    causes: [
+      "CLOSE sur un fichier non ouvert",
+      "Fichier ouvert plusieurs fois sans fermeture intermédiaire",
+      "Erreur lors du flush du buffer en fin de traitement"
+    ],
+    solutions: [
+      "Vérifier que chaque OPEN est suivi d'un CLOSE en fin de traitement",
+      "Gérer FILE STATUS sur les OPEN et CLOSE",
+      "Contrôler les chemins alternatifs (erreurs) qui sautent le CLOSE"
+    ]
+  },
+  "S0C5": {
+    title: "Addressing Exception",
+    type: "SYSTEM ABEND · Mémoire",
+    severity: "high",
+    causes: [
+      "Adresse en dehors de l'espace adressable (> 2 Go en mode 31 bits)",
+      "Registre de base contenant une valeur invalide",
+      "Pointeur corrompu par un buffer overflow"
+    ],
+    solutions: [
+      "Analyser le dump pour identifier le registre fautif",
+      "Vérifier les USING et l'initialisation des registres de base",
+      "Contrôler les zones de pointeurs dans le LINKAGE SECTION"
+    ]
+  },
+  "S0C6": {
+    title: "Specification Exception",
+    type: "SYSTEM ABEND · Données",
+    severity: "high",
+    causes: [
+      "Opérande non aligné sur une frontière correcte (halfword, fullword)",
+      "Champ PIC S9 COMP utilisé avec un mauvais alignement mémoire",
+      "Instruction nécessitant un alignement pair sur une adresse impaire"
+    ],
+    solutions: [
+      "Utiliser SYNCHRONIZED sur les zones COMP et COMP-3",
+      "Vérifier l'alignement dans la WORKING-STORAGE SECTION",
+      "Analyser le dump pour localiser l'instruction fautive"
+    ]
+  },
+  "S437": {
+    title: "Erreur VSAM – Espace disque insuffisant",
+    type: "SYSTEM ABEND · VSAM",
+    severity: "medium",
+    causes: [
+      "Le cluster VSAM n'a plus d'extensions disponibles (CI/CA splits épuisés)",
+      "SHAREOPTIONS incompatibles entre deux jobs accédant au même fichier",
+      "Volume de données supérieur aux prévisions lors de la définition IDCAMS"
+    ],
+    solutions: [
+      "Réorganiser le fichier VSAM avec REPRO + DELETE + DEFINE + REPRO",
+      "Augmenter FREESPACE ou le nombre d'extensions lors de la redéfinition",
+      "Vérifier l'espace disponible sur les volumes avec D SMS,VOL=SER=…"
+    ]
+  },
+  "S804": {
+    title: "Région mémoire insuffisante pour charger le module",
+    type: "SYSTEM ABEND · Mémoire",
+    severity: "medium",
+    causes: [
+      "REGION= trop faible pour charger le module de chargement",
+      "Trop de modules chargés simultanément en mémoire"
+    ],
+    solutions: [
+      "Augmenter REGION= dans la carte EXEC",
+      "Contacter l'administrateur système si IEALIMIT restreint la région"
+    ]
+  },
+  "S522": {
+    title: "Job Wait Time Exceeded",
+    type: "SYSTEM ABEND · Performance",
+    severity: "medium",
+    causes: [
+      "Le job est resté en attente plus longtemps que le TWAITLIM défini",
+      "Attente d'une réponse WTOR restée sans réponse",
+      "Enqueue sur une ressource détenu par un autre job (deadlock)"
+    ],
+    solutions: [
+      "Vérifier les WTOR dans le programme et s'assurer qu'ils ont une réponse",
+      "Analyser les ENQ/DEQ pour détecter un deadlock",
+      "Contacter l'opérateur pour vérifier l'état des ressources"
+    ]
+  },
+  "S614": {
+    title: "Espace insuffisant sur le volume cible",
+    type: "SYSTEM ABEND · I/O",
+    severity: "medium",
+    causes: [
+      "Le dataset en création dépasse l'espace primaire alloué et il n'y a pas d'extension possible",
+      "Volume plein (espace disque 0%)",
+      "Nombre maximum d'extensions atteint (16 ou 123 selon format)"
+    ],
+    solutions: [
+      "Augmenter l'allocation SPACE dans le JCL",
+      "Supprimer les datasets inutiles sur le volume",
+      "Allouer le dataset sur un autre volume avec plus d'espace"
+    ]
+  },
+  "S637": {
+    title: "Erreur lors de la fermeture – Dataset en sortie",
+    type: "SYSTEM ABEND · I/O",
+    severity: "low",
+    causes: [
+      "Erreur lors de l'écriture du dernier bloc avant fermeture",
+      "Volume plein au moment du flush final"
+    ],
+    solutions: [
+      "Vérifier l'espace disque disponible sur le volume",
+      "Consulter les messages SYSLOG au moment de l'abend"
+    ]
+  },
+  "U0001": {
+    title: "User Abend 0001 – Erreur applicative générique",
+    type: "USER ABEND · Application",
+    severity: "medium",
+    causes: [
+      "ABEND U0001 déclenché explicitement dans le code applicatif",
+      "Erreur de validation des données en entrée",
+      "Condition d'erreur métier non récupérable"
+    ],
+    solutions: [
+      "Consulter les DISPLAY ou les messages applicatifs avant l'abend",
+      "Analyser le code source à l'endroit où ABEND U0001 est codé",
+      "Vérifier les données en entrée du job"
+    ]
+  },
+  "U1000": {
+    title: "User Abend 1000 – Erreur de paramètre",
+    type: "USER ABEND · Application",
+    severity: "medium",
+    causes: [
+      "Paramètre PARM= manquant ou incorrect dans le JCL",
+      "Format de paramètre non attendu par le programme",
+      "Paramètre obligatoire absent"
+    ],
+    solutions: [
+      "Vérifier la carte EXEC PARM= et sa syntaxe",
+      "Consulter la documentation du programme pour le format attendu",
+      "Ajouter les paramètres manquants"
+    ]
+  },
+  "U4038": {
+    title: "User Abend 4038 – Erreur DB2 non récupérée",
+    type: "USER ABEND · DB2",
+    severity: "high",
+    causes: [
+      "SQLCODE négatif non géré dans le programme",
+      "Absence de vérification SQLCODE après chaque ordre SQL",
+      "Erreur de deadlock DB2 (SQLCODE -911)"
+    ],
+    solutions: [
+      "Vérifier tous les SQLCODE après chaque EXEC SQL",
+      "Implémenter une routine de gestion des erreurs SQL",
+      "Consulter le SYSPRINT pour le SQLCODE et SQLERRM associés"
+    ]
+  },
+  "S0D5": {
+    title: "Program Interrupt – Decimal Overflow",
+    type: "SYSTEM ABEND · Arithmétique",
+    severity: "medium",
+    causes: [
+      "Résultat d'un calcul décimal trop grand pour la zone de réception",
+      "Zone PIC 9(n) trop petite pour contenir le résultat d'une multiplication",
+      "ON SIZE ERROR non codé sur une opération arithmétique"
+    ],
+    solutions: [
+      "Agrandir la zone de réception (PIC 9)",
+      "Utiliser ON SIZE ERROR pour capturer les dépassements",
+      "Vérifier les valeurs max possibles dans les calculs"
+    ]
+  },
+  "S30A": {
+    title: "Virtual Storage Constraint Relief – Mémoire virtuelle épuisée",
+    type: "SYSTEM ABEND · Mémoire",
+    severity: "high",
+    causes: [
+      "Espace d'adressage virtuel épuisé (below the line)",
+      "Trop de modules chargés en mémoire basse (< 16 Mo)",
+      "Fuite mémoire progressive dans un long traitement"
+    ],
+    solutions: [
+      "Recompiler les modules en mode AMODE(31) RMODE(ANY)",
+      "Augmenter REGION= ou utiliser MEMLIMIT pour la mémoire haute",
+      "Analyser les GETMAIN sans FREEMAIN correspondant"
+    ]
+  },
+  "S700": {
+    title: "Erreur de tri (SORT / DFSORT)",
+    type: "SYSTEM ABEND · SORT",
+    severity: "medium",
+    causes: [
+      "Paramètres SORT incorrects (FIELDS, FORMAT, longueur)",
+      "Espace work insuffisant pour le tri (fichiers SORTWK)",
+      "Fichier en entrée vide alors que SKIPREC ou STOPAFT est utilisé"
+    ],
+    solutions: [
+      "Vérifier les cartes SORT FIELDS (position, longueur, format)",
+      "Ajouter ou agrandir les fichiers SORTWKxx dans le JCL",
+      "Consulter le message SORT en SYSOUT pour le code retour exact"
+    ]
+  },
+  "S80A": {
+    title: "Manque de mémoire virtuelle (Extended)",
+    type: "SYSTEM ABEND · Mémoire",
+    severity: "high",
+    causes: [
+      "Mémoire virtuelle étendue (above the bar) épuisée",
+      "MEMLIMIT trop bas pour les besoins du programme",
+      "Allocation massive de tables en mémoire haute"
+    ],
+    solutions: [
+      "Augmenter MEMLIMIT dans la JOB card",
+      "Contacter l'administrateur système pour les limites SMF",
+      "Analyser les allocations mémoire haute dans le dump"
+    ]
+  },
+  "S9999": {
+    title: "Abend système divers – Non classifié",
+    type: "SYSTEM ABEND · Système",
+    severity: "medium",
+    causes: [
+      "Abend intercepté et re-émis par un handler d'erreur système",
+      "Problème matériel ou firmware sous-jacent",
+      "Erreur rare non documentée dans les références IBM"
+    ],
+    solutions: [
+      "Analyser le dump complet pour le reason code associé",
+      "Consulter IBM Documentation / technotes pour le code exact",
+      "Contacter le support IBM si le problème est récurrent"
+    ]
+  },
+  "S0C2": {
+    title: "Privileged Operation Exception",
+    type: "SYSTEM ABEND · Protection",
+    severity: "high",
+    causes: [
+      "Tentative d'exécution d'une instruction privilégiée en mode problem state",
+      "Programme applicatif tentant une opération réservée au superviseur"
+    ],
+    solutions: [
+      "Analyser le dump pour identifier l'instruction privilégiée exécutée",
+      "Vérifier si un module système a été appelé incorrectement",
+      "Contacter le support système si le problème est inattendu"
+    ]
+  }
+};
+
+const COMMON = ["S0C7","S322","S806","S913","S0C4","S001","U4038","S222"];
+
+// Populate chips
+const chipsEl = document.getElementById('chips');
+COMMON.forEach(code => {
+  const chip = document.createElement('div');
+  chip.className = 'chip';
+  chip.textContent = code;
+  chip.onclick = () => {
+    document.getElementById('abendInput').value = code;
+    decode();
+  };
+  chipsEl.appendChild(chip);
+});
+
+// Enter key
+document.getElementById('abendInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') decode();
+});
+
+function decode() {
+  const raw = document.getElementById('abendInput').value.trim().toUpperCase();
+  const card = document.getElementById('resultCard');
+  const nf   = document.getElementById('notFound');
+
+  card.classList.remove('visible');
+  nf.classList.remove('visible');
+
+  if (!raw) return;
+
+  const data = ABENDS[raw];
+
+  if (!data) {
+    document.getElementById('nfCode').textContent = raw;
+    nf.classList.add('visible');
+    return;
+  }
+
+  document.getElementById('resCode').textContent = raw;
+  document.getElementById('resTitle').textContent = data.title;
+  document.getElementById('resType').textContent = data.type;
+
+  const sevEl = document.getElementById('resSev');
+  sevEl.className = 'severity-badge';
+  if (data.severity === 'high')   { sevEl.classList.add('sev-high');   sevEl.textContent = 'CRITIQUE'; }
+  if (data.severity === 'medium') { sevEl.classList.add('sev-medium'); sevEl.textContent = 'MODÉRÉ'; }
+  if (data.severity === 'low')    { sevEl.classList.add('sev-low');    sevEl.textContent = 'FAIBLE'; }
+
+  const causesEl = document.getElementById('resCauses');
+  causesEl.innerHTML = data.causes.map(c => `<li>${c}</li>`).join('');
+
+  const solEl = document.getElementById('resSolutions');
+  solEl.innerHTML = data.solutions.map(s => `<li>${s}</li>`).join('');
+
+  card.classList.add('visible');
+  card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+</script>
+</body>
+</html>
